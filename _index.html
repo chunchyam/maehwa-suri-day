@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <!-- 모바일 대응 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>일일 매화역수 & 운세 (수정본)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+      color: #333;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    label {
+      display: block;
+      margin: 10px 0 5px;
+    }
+    input[type="number"], select {
+      padding: 5px;
+      font-size: 1em;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 10px 0;
+    }
+    table {
+      margin-top: 20px;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+      vertical-align: middle;
+    }
+    th {
+      background: #007BFF;
+      color: white;
+    }
+    .highlight-blue {
+      background-color: lightblue !important;
+    }
+    .highlight-red {
+      background-color: lightcoral !important;
+    }
+    .highlight-purple {
+      background-color: violet !important;
+    }
+    .output {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #f5f5f5;
+      min-height: 50px;
+      white-space: pre-wrap;
+      font-size: 1.1em;
+      line-height: 1.4em;
+    }
+    .formula {
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 6px;
+      display: block;
+    }
+    .result-value {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #333;
+    }
+    .fortune {
+      background: #eef;
+      padding: 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+      font-size: 1em;
+      color: #005;
+      display: block;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>일일 매화역수 & 운세</h1>
+  
+  <!-- 입력 영역 -->
+  <label for="birthMonth">음력 생월 (1~12):</label>
+  <input type="number" id="birthMonth" min="1" max="12" value="2">
+  
+  <label for="birthDay">음력 생일 (1~31):</label>
+  <input type="number" id="birthDay" min="1" max="31" value="9">
+  
+  <!-- "올해 나이" 입력란은 제거하고, 대신 오늘 음력 월, 오늘 음력 일 입력 -->
+  <label for="dailyMonth">오늘 음력 월 (1~12):</label>
+  <input type="number" id="dailyMonth" min="1" max="12" value="3">
+  
+  <label for="dailyDay">오늘 음력 일 (1~31):</label>
+  <input type="number" id="dailyDay" min="1" max="31" value="25">
+  
+  <button onclick="calculateSuri()">계산하기</button>
+  
+  <div id="result"></div>
+  
+  <hr>
+  
+  <!-- 선택 하이라이트 영역 -->
+  <h2>일지 선택</h2>
+  <label for="zodiacSelect">일지 선택:</label>
+  <select id="zodiacSelect">
+    <option value="인">인</option>
+    <option value="묘">묘</option>
+    <option value="진">진</option>
+    <option value="사">사</option>
+    <option value="오">오</option>
+    <option value="미">미</option>
+    <option value="신">신</option>
+    <option value="유">유</option>
+    <option value="술">술</option>
+    <option value="해">해</option>
+    <option value="자">자</option>
+    <option value="축">축</option>
+  </select>
+  <button onclick="highlightCombos()">하이라이트 적용</button>
+  
+  <div id="logOutput" class="output"></div>
+  
+  <!-- "수리별 운세 보기" 버튼 -->
+  <button onclick="openFortuneWindow()">수리별 운세 보기</button>
+</div>
+
+<script>
+  // --------------------------
+  // 전역 변수: 12지 배열 (index 파일의 레이블 순서)
+  // --------------------------
+  const monthLetters = ["인", "묘", "진", "사", "오", "미", "신", "유", "술", "해", "자", "축"];
+  
+  // --------------------------
+  // 보조 함수: n이 10 이상이면 9를 반복해서 빼서 1~9 범위로 (mod 9)
+  // --------------------------
+  function adjust(n) {
+    while(n > 9) {
+      n -= 9;
+    }
+    return n;
+  }
+  
+  // --------------------------
+  // 미리 선언: 운세 메시지 매핑 객체 (key: 오름차순 정렬된 조합)
+  // --------------------------
+  const fortuneMapping = {
+    "123": "이별, 퇴직, 이혼",
+    "156": "혁신, 가정 및 직장에서 큰 변화가 일어나는 시기",
+    "189": "대길, 가장 길한 시기",
+    "213": "의 경우 여자로 인해 본처와 이혼",
+    "279": "되는 일이 없음 / 건강 조심",
+    "336": "상관, 직장 내 문제 발생, 현실 탈피 원하는 시기",
+    "369": "관재구설, 사건사고 발생, 말조심",
+    "339": "상문살, 운전, 문서 조심",
+    "459": "무난, 모든 일이 무난하게 진행되는 시기 (이별수 주의)",
+    "573": "가장 안좋은 시기, 이혼, 유산, 사고, 이별",
+    "966": "합격, 승진, 취업, 당선 등 명예 상승",
+    "999": "여행, 이사, 이민, 출장 등 분위기 전환 시기",
+    "112": "결혼·임신 운 (1수 합되면 임신)",
+    "448": "8수 합되면 들어오는 돈, 충이면 나가는 돈",
+    "134": "3수리의 경우 심리적 갈등",
+    "167": "명예 승진",
+    "843": "충되면 관재구설/낙직",
+    "253": "심리적 갈등으로 종교계통으로 전환",
+    "268": "승진운",
+    "314": "여자는 헤어짐 운, 무서운 숫자",
+    "729": "진신사해 생일, 건강 조심"
+  };
+  
+  // --------------------------
+  // 미리 선언: combosTable 및 분해 함수
+  // --------------------------
+  const combosTable = {
+    "암합":  ["자사", "오해", "인해"],
+    "육합":  ["자축", "인해", "묘술", "진묘", "사신", "오미"],
+    "꼭지합": ["진사", "축인", "술해", "신미"],
+    "삼합":  ["인오술", "신자진", "해묘미", "사유축", "인오술"],
+    "방합":  ["인묘진", "사오미", "신유술", "해자축"],
+    "형살":  ["인사신", "축술미", "자묘", "진진", "오오", "유유", "해해"],
+    "상충":  ["자오", "묘유", "사해", "인신", "진술"],
+    "귀문":  ["자유", "축오", "인미", "묘신", "진해", "사술"]
+  };
+  
+  function splitCombo(str) {
+    return str.split("");
+  }
+  
+  // --------------------------
+  // 매화역수 계산 함수 (일일 매화역수)
+  // --------------------------
+  // 기존 "매화역수 수정본" 파일의 계산 공식은 유지하며,
+  // 결과표의 레이블은 formulaLabels로 "23-01시", "01-03시", … "21-23시"를 사용합니다.
+  function calculateSuri() {
+    const birthMonth = parseInt(document.getElementById("birthMonth").value);
+    const birthDay = parseInt(document.getElementById("birthDay").value);
+    // "age" 입력은 삭제되었으므로 해당 부분 제거
+    const dM = parseInt(document.getElementById("dailyMonth").value);
+    const dD = parseInt(document.getElementById("dailyDay").value);
+    
+    const m1 = adjust(birthMonth + birthDay + 1 - 9);
+    const m2 = adjust(dM + dD);
+    const m3 = adjust(m1 + m2);
+    const m4 = adjust(m1 + m3);
+    const m5 = adjust(m2 + m3);
+    const m6 = adjust(m4 + m5);
+    const m7 = adjust(m4 + m6);
+    const m8 = adjust(m5 + m6);
+    const m9 = adjust(m7 + m8);
+    const m10 = adjust(m1 + m4 + m7);
+    const m11 = adjust(m2 + m5 + m8);
+    const m12 = adjust(m10 + m11);
+    
+    const resultValues = [m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12];
+    const formulaLabels = [
+      "23-01시", "01-03시", "03-05시",
+      "05-07시", "07-09시", "09-11시",
+      "11-13시", "13-15시", "15-17시",
+      "17-19시", "19-21시", "21-23시"
+    ];
+    
+    let html = '<h2>계산 결과 </h2>';
+    html += '<table>';
+    let rowKeys = [];
+    let idx = 0;
+    for (let i = 0; i < 4; i++) {
+      html += '<tr>';
+      let currentKey = "";
+      for (let j = 0; j < 3; j++) {
+        const label = formulaLabels[idx];
+        const value = resultValues[idx];
+        html += `<td id="cell-${idx}">
+                   <span class="formula">${label}</span>
+                   <span class="result-value">${value}</span>
+                 </td>`;
+        currentKey += String(value);
+        idx++;
+      }
+      rowKeys.push(currentKey);
+      html += '</tr>';
+      html += `<tr><td colspan="3" id="fortune-row-${i}"></td></tr>`;
+    }
+    html += '</table>';
+    
+    document.getElementById("result").innerHTML = html;
+    document.getElementById("logOutput").innerText = "결과표가 생성되었습니다. 일지 선택을 해보세요!";
+    
+    // 각 행의 조합 키를 오름차순 정렬하여 운세 메시지 표시
+    for (let i = 0; i < rowKeys.length; i++) {
+      let sortedKey = rowKeys[i].split("").sort().join("");
+      const message = fortuneMapping[sortedKey] || "해당 운세 해석이 없습니다.";
+      document.getElementById("fortune-row-" + i).innerHTML =
+        `<span class="fortune">[${sortedKey}] → ${message}</span>`;
+    }
+  }
+  
+  // --------------------------
+  // 기존 하이라이트 적용 함수
+  // --------------------------
+  function highlightCombos() {
+    if (!document.getElementById("cell-0")) {
+      alert("먼저 '계산하기' 버튼을 눌러 결과표를 생성해 주세요.");
+      return;
+    }
+    
+    for (let i = 0; i < 12; i++) {
+      const cell = document.getElementById("cell-" + i);
+      if (cell) {
+        cell.classList.remove("highlight-blue", "highlight-red", "highlight-purple");
+      }
+    }
+    
+    const selected = document.getElementById("zodiacSelect").value;
+    let logMsg = `선택 글자 [${selected}] 관련 조합:\n`;
+    const exceptions = ["진진", "오오", "유유", "해해"];
+    
+    const colColor = {
+      "암합": "blue", "육합": "blue", "꼭지합": "blue", "삼합": "blue", "방합": "blue",
+      "형살": "red", "상충": "red", "귀문": "red"
+    };
+    
+    for (const colName in combosTable) {
+      const comboArr = combosTable[colName];
+      comboArr.forEach(comboStr => {
+        const letters = splitCombo(comboStr);
+        if (letters.includes(selected)) {
+          const baseHighlightClass = (exceptions.includes(comboStr))
+            ? "highlight-red"
+            : (colColor[colName] === "blue" ? "highlight-blue" : "highlight-red");
+          
+          letters.forEach(letter => {
+            if (!exceptions.includes(comboStr) && letter === selected) return;
+            const idx = monthLetters.indexOf(letter);
+            if (idx >= 0) {
+              const cell = document.getElementById("cell-" + idx);
+              if (cell) {
+                const hasBlue = cell.classList.contains("highlight-blue");
+                const hasRed = cell.classList.contains("highlight-red");
+                if ((hasBlue && baseHighlightClass === "highlight-red") ||
+                    (hasRed && baseHighlightClass === "highlight-blue")) {
+                  cell.classList.remove("highlight-blue", "highlight-red");
+                  cell.classList.add("highlight-purple");
+                } else {
+                  cell.classList.add(baseHighlightClass);
+                }
+              }
+            }
+          });
+          
+          let colorLabel = (baseHighlightClass === "highlight-blue") ? "파랑"
+                         : (baseHighlightClass === "highlight-red") ? "빨강"
+                         : "보라";
+          
+          const filteredLetters = letters.filter(l => (!exceptions.includes(comboStr)) ? l !== selected : true);
+          logMsg += `- [${colName}] "${comboStr}" → ${filteredLetters.join(",")} (→ ${colorLabel})\n`;
+        }
+      });
+    }
+    
+    document.getElementById("logOutput").innerText = logMsg.trim();
+  }
+  
+  // --------------------------
+  // "수리별 운세 보기" 버튼: 새 창 열기
+  // --------------------------
+  function openFortuneWindow() {
+    const fortuneHTML = `
+      <!DOCTYPE html>
+      <html lang="ko">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>수리별 운세</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; color: #333; }
+          h1 { text-align: center; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ccc; padding: 8px; text-align: center; vertical-align: middle; }
+          th { background: #007BFF; color: #fff; }
+        </style>
+      </head>
+      <body>
+        <h1>수리별 운세</h1>
+        <table>
+          <tr>
+            <th>수리</th>
+            <th>구분</th>
+            <th>내용</th>
+          </tr>
+          <tr>
+            <td rowspan="2">1수리</td>
+            <td>합(삼합,육합)</td>
+            <td>새로운 사람과 일이 나타남, 시작함</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>원수, 배신자, 새로운 일 때문에 돈도 건강도 잃음</td>
+          </tr>
+          <tr>
+            <td rowspan="2">2수리</td>
+            <td>합</td>
+            <td>직장, 직업, 이사, 이민, 편입 등 변화를 주고 싶음</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>변화를 하면 안 됨</td>
+          </tr>
+          <tr>
+            <td rowspan="2">3수리</td>
+            <td>합</td>
+            <td>불행 중 다행, 조상이 도와줌 - 정신적 스트레스 많은 달</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>안 좋은 일이 발생하며 조상이 도와주지 않음</td>
+          </tr>
+          <tr>
+            <td rowspan="2">4수리</td>
+            <td>합</td>
+            <td>일이 잘 풀리며, 안정적이고 무난하다.</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>가정이나 직장에서 문제가 발생할 수 있음</td>
+          </tr>
+          <tr>
+            <td rowspan="2">5수리</td>
+            <td>합</td>
+            <td>좋은 일로 깜짝, 부동산 매수 시기</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>투자하면 안 됨, 인간관계에서 문제 발생</td>
+          </tr>
+          <tr>
+            <td rowspan="2">6수리</td>
+            <td>합</td>
+            <td>직장, 직업, 승진, 결혼, 계약 등 관적으로 좋은 일</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>입원, 패소, 불합격, 시비, 관재구설, 이혼 등 안 좋은 일</td>
+          </tr>
+          <tr>
+            <td rowspan="2">7수리</td>
+            <td>합</td>
+            <td>덜 아픔</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>일이 마음대로 되지 않고, 몸과 마음이 고생</td>
+          </tr>
+          <tr>
+            <td rowspan="2">8수리</td>
+            <td>합</td>
+            <td>재물운, 부동산 매매 등 돈 관련 좋은 일</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>돈이 깨짐, 내야 할 돈 미리 내야 함</td>
+          </tr>
+          <tr>
+            <td rowspan="2">9수리</td>
+            <td>합</td>
+            <td>문서운, 여행운, 승진, 시험합격, 창업, 부동산 매매</td>
+          </tr>
+          <tr>
+            <td>형충파해원진</td>
+            <td>해고, 패소, 이혼, 좌천, 퇴직 등 가정/직장 무너짐</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+    
+    const newWindow = window.open("", "_blank");
+    newWindow.document.open();
+    newWindow.document.write(fortuneHTML);
+    newWindow.document.close();
+  }
+</script>
+</body>
+</html>
